@@ -4,7 +4,7 @@
 #boot_entries_dir="/boot/loader/entries"
 boot_entries_dir="./entries"
 sort_type="none"
-kernel_regex=""
+search_regex=""
 
 function ListFileEntry() {
     title=$(grep -oP '^title \K.*' $1)
@@ -39,7 +39,15 @@ function List() {
 
     if [ "$sort_type" == "kernel" ]; then
         for file in $boot_entries_dir/*; do
-            grep -oP "^linux \K.*" $file | grep -qP "$kernel_regex" && echo $file
+            grep -oP "^linux \K.*" $file | grep -qP "$search_regex" && echo $file
+        done | while read file; do
+            ListFileEntry "$file"
+        done
+    fi
+
+    if [ "$sort_type" == "title" ]; then
+        for file in $boot_entries_dir/*; do
+            grep -oP "^title \K.*" $file | grep -qP "$search_regex" && echo $file
         done | while read file; do
             ListFileEntry "$file"
         done
@@ -49,7 +57,7 @@ function List() {
 mode=$1
 shift
 
-while getopts "fsb:k:" option; do
+while getopts "fsb:k:t:" option; do
     case $option in 
         b)
         boot_entries_dir="$OPTARG"
@@ -62,7 +70,11 @@ while getopts "fsb:k:" option; do
         ;;
         k)
         sort_type="kernel"
-        kernel_regex="$OPTARG"
+        search_regex="$OPTARG"
+        ;;
+        t)
+        sort_type="title"
+        search_regex="$OPTARG"
         ;;
         \?)
         echo "Error invalid option"
