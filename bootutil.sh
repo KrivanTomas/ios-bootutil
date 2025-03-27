@@ -54,6 +54,15 @@ function List() {
     fi
 }
 
+function Remove() {
+    for file in $boot_entries_dir/*; do
+        if $(grep -oP "^title \K.*" $file | grep -qP "$1"); then
+            echo "Removing $file"
+            rm -f $file
+        fi
+    done
+}
+
 mode=$1
 shift
 
@@ -88,7 +97,9 @@ case $mode in
     List
     ;;
     remove)
-    echo "mode: remove"
+    if [[ "$#" == "1" && "$1" != "" ]]; then
+        Remove $1
+    fi
     ;;
     duplicate)
     echo "mode: duplicate"
