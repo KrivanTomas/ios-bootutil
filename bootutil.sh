@@ -4,7 +4,8 @@
 #boot_entries_dir="/boot/loader/entries"
 boot_entries_dir="./entries"
 sort_type="none"
-search_regex=""
+filter_type="none"
+filter_regex=""
 
 function ListFileEntry() {
     title=$(grep -oP '^title \K.*' $1)
@@ -39,7 +40,7 @@ function List() {
 
     if [ "$sort_type" == "kernel" ]; then
         for file in $boot_entries_dir/*; do
-            grep -oP "^linux \K.*" $file | grep -qP "$search_regex" && echo $file
+            grep -oP "^linux \K.*" $file | grep -qE "$filter_regex" && echo $file
         done | while read file; do
             ListFileEntry "$file"
         done
@@ -47,7 +48,7 @@ function List() {
 
     if [ "$sort_type" == "title" ]; then
         for file in $boot_entries_dir/*; do
-            grep -oP "^title \K.*" $file | grep -qP "$search_regex" && echo $file
+            grep -oP "^title \K.*" $file | grep -qE "$filter_regex" && echo $file
         done | while read file; do
             ListFileEntry "$file"
         done
@@ -56,43 +57,45 @@ function List() {
 
 function Remove() {
     for file in $boot_entries_dir/*; do
-        if $(grep -oP "^title \K.*" $file | grep -qP "$1"); then
+        if $(grep -oP "^title \K.*" $file | grep -qE "$1"); then
             echo "Removing $file"
             rm -f $file
         fi
     done
 }
 
-mode=$1
-shift
 
+# Options
 while getopts "fsb:k:t:" option; do
     case $option in 
         b)
-        boot_entries_dir="$OPTARG"
-        ;;
+            boot_entries_dir="$OPTARG"
+            ;;
         f)
-        sort_type="file"
-        ;;
+            sort_type="file"
+            ;;
         s)
-        sort_type="sortkey"
-        ;;
+            sort_type="sortkey"
+            ;;
         k)
-        sort_type="kernel"
-        search_regex="$OPTARG"
-        ;;
+            filter_type="kernel"
+            filter_regex="$OPTARG"
+            ;;
         t)
-        sort_type="title"
-        search_regex="$OPTARG"
-        ;;
+            filter_type="title"
+            filter_regex="$OPTARG"
+            ;;
         \?)
-        echo "Error invalid option"
-        exit
-        ;;
+            echo "Error invalid option"
+            exit
+            ;;
     esac
 done
 
-case $mode in 
+shift $((OPTIND-1))
+
+# Mode
+case $1 in 
     list)
     List
     ;;
