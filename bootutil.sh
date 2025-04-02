@@ -24,13 +24,11 @@ function FilterTitle() {
 }
 
 function List() {
-
+    filtered=$( # Filter
     echo $filter_type | grep -qG "kernel"
     bykernel=$?
     echo $filter_type | grep -qG "title" 
     bytitle=$?
-
-    ( # Filter
     if [[ $bykernel == 0 ]] && [[ $bytitle == 0 ]]; then
         for file in $boot_entries_dir/*; do
             FilterKernel $file && FilterTitle $file && echo $file 
@@ -48,44 +46,28 @@ function List() {
             echo $file 
         done
     fi
-    ) | while read file; do
+    );
+
+    case $sort_type in
+        file)
+            for file in $filtered; do
+                echo $file | grep -oP '[^/]*\.conf$'
+            done | sort | while read -r line; do echo "$boot_entries_dir/$line"; done
+            ;;
+        sortkey)
+            for file in $filtered; do
+                sort_key=$(grep -oP '^sort-key \K.*' $file)
+                echo "$([[ "$sort_key" != "" ]] && echo "1" || echo "a") $sort_key $(echo $file | grep -oP '[^/]*\.conf$')"
+            done | sort | cut -d ' ' -f3- | while read -r line; do echo "$boot_entries_dir/$line"; done
+           ;;
+        *)
+            for file in $filtered; do
+                echo $file
+            done
+            ;;
+    esac | while read file; do
         ListFileEntry $file
-    done
-
-    return
-
-    if [[ "$sort_type" == "file" ]]; then
-        for file in $boot_entries_dir/*; do
-            echo $file | grep -oP '[^/]*\.conf$'
-        done | sort | while read file; do
-             ListFileEntry "$boot_entries_dir/$file"
-        done
-    fi
-
-    if [[ $sort_type == "sortkey" ]]; then
-        for file in $boot_entries_dir/*; do
-            sort_key=$(grep -oP '^sort-key \K.*' $file)
-            echo "$([[ "$sort_key" != "" ]] && echo "1" || echo "a") $sort_key $(echo $file | grep -oP '[^/]*\.conf$')"
-        done | sort | cut -d ' ' -f3- | while read file; do
-        ListFileEntry "$boot_entries_dir/$file"
-    done
-    fi
-
-    if [[ $filter_type == "kernel" ]]; then
-        for file in $boot_entries_dir/*; do
-            FilterKernel $file && echo $file
-        done | while read file; do
-        ListFileEntry "$file"
-    done
-    fi
-
-    if [[ $filter_type == "title" ]]; then
-        for file in $boot_entries_dir/*; do
-            FilterTitle $file && echo $file
-        done | while read file; do
-        ListFileEntry "$file"
-    done
-    fi
+    done 
 }
 
 function Remove() {
