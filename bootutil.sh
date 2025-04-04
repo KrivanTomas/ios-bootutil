@@ -79,35 +79,41 @@ function Remove() {
     done
 }
 
+function GetOptions() {
+    while getopts "fsb:k:t:" option; do
+        case $option in 
+            b)
+                boot_entries_dir="$OPTARG"
+                ;;
+            f)
+                sort_type="file"
+                ;;
+            s)
+                sort_type="sortkey"
+                ;;
+            k)
+                filter_type+="kernel"
+                filter_kernel_regex="$OPTARG"
+                ;;
+            t)
+                filter_type+="title"
+                filter_title_regex="$OPTARG"
+                ;;
+            \?)
+                echo "Error invalid option"
+                exit
+                ;;
+        esac
+    done
+}
+
+# read options and mode
+GetOptions $@
+shift $(($OPTIND - 1))
 mode=$1
-
-shift 
-
-while getopts "fsb:k:t:" option; do
-    case $option in 
-        b)
-            boot_entries_dir="$OPTARG"
-            ;;
-        f)
-            sort_type="file"
-            ;;
-        s)
-            sort_type="sortkey"
-            ;;
-        k)
-            filter_type+="kernel"
-            filter_kernel_regex="$OPTARG"
-            ;;
-        t)
-            filter_type+="title"
-            filter_title_regex="$OPTARG"
-            ;;
-        \?)
-            echo "Error invalid option"
-            exit
-            ;;
-    esac
-done
+shift
+OPTIND=1
+GetOptions $@
 
 # Mode
 case $mode in 
