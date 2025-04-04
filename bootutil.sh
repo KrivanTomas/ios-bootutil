@@ -3,10 +3,14 @@
 # Demo only
 #boot_entries_dir="/boot/loader/entries"
 boot_entries_dir="./entries"
-sort_type=""
-filter_type=""
-filter_kernel_regex=""
-filter_title_regex=""
+option_set=""
+kernel_value=""
+title_value=""
+initramfs_value=""
+cmdline_add_value=""
+cmdline_remove_value=""
+destination_value=""
+make_default_value=""
 
 function ListFileEntry() {
     title=$(grep -oP '^title \K.*' $1)
@@ -16,20 +20,20 @@ function ListFileEntry() {
 }
 
 function FilterKernel() {
-    grep -oP "^linux \K.*" $1 | grep -qE "$filter_kernel_regex"
+    grep -oP "^linux \K.*" $1 | grep -qE "$kernel_value"
 }
 
 function FilterTitle() {
-    grep -oP "^title \K.*" $1 | grep -qE "$filter_title_regex"
+    grep -oP "^title \K.*" $1 | grep -qE "$title_value"
 }
 
 function List() {
     filtered=$( # Filter
-    echo $filter_type | grep -qG "kernel"
+    echo $option_set | grep -qG "k"
     bykernel=$?
-    echo $filter_type | grep -qG "title" 
+    echo $option_set | grep -qG "t" 
     bytitle=$?
-    if [[ $bykernel == 0 ]] && [[ $bytitle == 0 ]]; then
+    if [[ $bymernel == 0 ]] && [[ $bytitle == 0 ]]; then
         for file in $boot_entries_dir/*; do
             FilterKernel $file && FilterTitle $file && echo $file 
         done
@@ -39,7 +43,7 @@ function List() {
         done
     elif [[ $bytitle == 0 ]]; then
         for file in $boot_entries_dir/*; do
-            FilterTitle $file && echo $file 
+            FilterTitle $file && echo $file
         done
     else
         for file in $boot_entries_dir/*; do
@@ -48,26 +52,24 @@ function List() {
     fi
     );
 
-    case $sort_type in
-        file)
-            for file in $filtered; do
-                echo $file | grep -oP '[^/]*\.conf$'
-            done | sort | while read -r line; do echo "$boot_entries_dir/$line"; done
-            ;;
-        sortkey)
-            for file in $filtered; do
-                sort_key=$(grep -oP '^sort-key \K.*' $file)
-                echo "$([[ "$sort_key" != "" ]] && echo "1" || echo "a") $sort_key $(echo $file | grep -oP '[^/]*\.conf$')"
-            done | sort | cut -d ' ' -f3- | while read -r line; do echo "$boot_entries_dir/$line"; done
-           ;;
-        *)
-            for file in $filtered; do
-                echo $file
-            done
-            ;;
-    esac | while read file; do
-        ListFileEntry $file
-    done 
+    (
+    if echo $option_set | grep -qG "f"; then # Sort by filename
+        for file in $filtered; do
+            echo $file | grep -oP '[^/]*\.conf$'
+        done | sort | while read -r line; do echo "$boot_entries_dir/$line"; done
+    elif echo $option_set | grep -qG "s"; then # Sort by sortkey
+        for file in $filtered; do
+            sort_key=$(grep -oP '^sort-key \K.*' $file)
+            echo "$([[ "$sort_key" != "" ]] && echo "1" || echo "a") $sort_key $(echo $file | grep -oP '[^/]*\.conf$')"
+        done | sort | cut -d ' ' -f3- | while read -r line; do echo "$boot_entries_dir/$line"; done
+    else # Unsorted
+        for file in $filtered; do
+            echo $file
+        done
+    fi
+    ) | while read file; do ListFileEntry $file; done 
+
+    return 0
 }
 
 function Remove() {
@@ -77,31 +79,109 @@ function Remove() {
             rm -f $file
         fi
     done
+
+    return 0
+}
+
+function Duplicate() {
+    source_file=$1
+    if [[ $1 == "" || $1[0] == -* ]]; then
+        source_file=$(
+            for file in $boot_entries_dir/*; do
+                grep -qP "^vutfit_default.*y" $file && echo $file && break
+            done
+        )
+        if [[ $source_file == "" ]]; then
+            echo "No default file to duplicate"
+            return 1
+        fi
+    elif [ ! -f $1 ]; then
+        echo "File $1 not found"
+        return 1;
+    fi
+
+
+    echo $source_file
+
+    return 0
+}
+
+function ShowDefault() {
+    for file in $boot_entries_dir/*; do
+        vutfit_default=$(grep -oP "^vutfit_default \K.*" $file)
+        if [[ $? == 0 && $vutfit_default == "y" ]]; then
+            # decide what to print out
+            if echo $option_set | grep -qg "f"; then
+                echo $file
+            else
+                cat $file
+            fi
+            return 0
+        fi
+    done
+    echo "no default file set"
+    return 1
+}
+
+function MakeDefault() {
+    if [ ! -f $1 ]; then
+        echo "file '$1' not found"
+        return 1
+    fi
+
+    # remove any potential defaults
+    for file in $boot_entries_dir/*; do
+        sed -i "s/^vutfit_default.*y/vutfit_default n/" $file
+    done
+
+    sed -i '/^vutfit_default /{h;s/n/y/};${x;/^$/{s//vutfit_default y/;h};x}' $1
+    return 0
 }
 
 function GetOptions() {
-    while getopts "fsb:k:t:" option; do
+    while getopts "fsb:k:t:i:a:r:d:-:" option; do
         case $option in 
-            b)
-                boot_entries_dir="$OPTARG"
-                ;;
             f)
-                sort_type="file"
+                option_set+="$option"
                 ;;
             s)
-                sort_type="sortkey"
+                option_set+="$option"
+                ;;
+            b)
+                option_set+="$option"
+                boot_entries_dir="$optarg"
                 ;;
             k)
-                filter_type+="kernel"
-                filter_kernel_regex="$OPTARG"
+                option_set+="$option"
+                kernel_value="$OPTARG"
                 ;;
             t)
-                filter_type+="title"
-                filter_title_regex="$OPTARG"
+                option_set+="$option"
+                title_value="$OPTARG"
+                ;;
+            i)
+                option_set+="$option"
+                initramfs_value="$OPTARG"
+                ;;
+            a)
+                option_set+="$option"
+                cmdline_add_value="$OPTARG"
+                ;;
+            r)
+                option_set+="$option"
+                cmdline_remove_value="$OPTARG"
+                ;;
+            d)
+                option_set+="$option"
+                destination_value="$OPTARG"
+                ;;
+            -)
+                option_set+="$option"
+                make_default_value="$OPTARG"
                 ;;
             \?)
                 echo "Error invalid option"
-                exit
+                exit 1
                 ;;
         esac
     done
@@ -115,6 +195,8 @@ shift
 OPTIND=1
 GetOptions $@
 
+return_code=0
+
 # Mode
 case $mode in 
     list)
@@ -126,17 +208,21 @@ case $mode in
         fi
         ;;
     duplicate)
-        echo "mode: duplicate"
+        Duplicate $1
         ;;
     show-default)
-        echo "mode: duplicate"
+        ShowDefault
         ;;
     make-default)
-        echo "mode: duplicate"
+        if [[ "$#" == "1" && "$1" != "" ]]; then
+            MakeDefault $1
+        fi
         ;;
     *)
         echo "Error invalid mode '$1'"
-        exit
+        exit 1
         ;;
 esac
-#echo "entries path: '$boot_entries_dir'"
+
+return_code=$?
+exit $return_code
