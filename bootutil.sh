@@ -1,8 +1,6 @@
 #!/bin/bash
 
-# Demo only
-#boot_entries_dir="/boot/loader/entries"
-boot_entries_dir="./entries"
+boot_entries_dir="/boot/loader/entries"
 option_set=""
 kernel_value=""
 title_value=""
@@ -13,62 +11,73 @@ destination_value=""
 make_default_value=""
 duplicate_value=""
 
+function Usage() {
+    echo "usage: bootutil [ -b <boot_entries_dir> ] COMMAND [options]"
+    echo "  commands:"
+    echo "      list [args]"
+    echo "      remove <title-regex>"
+    echo "      duplicate [<entry_file_path>] [args] [--make-default]"
+    echo "      show-default [args]"
+    echo "      make-default <entry_file_path>"
+    return 0
+}
+
 function ListFileEntry() {
-    title=$(grep -oP '^title \K.*' $1)
-    version=$(grep -oP '^version \K.*' $1)
-    linux=$(grep -oP '^linux \K.*' $1)
+    title=$(grep -oP '^title \K.*' "$1")
+    version=$(grep -oP '^version \K.*' "$1")
+    linux=$(grep -oP '^linux \K.*' "$1")
     echo "$title ($version, $linux)"
 }
 
 function FilterKernel() {
-    grep -oP "^linux \K.*" $1 | grep -qE "$kernel_value"
+    grep -oP "^linux \K.*" "$1" | grep -qE "$kernel_value"
 }
 
 function FilterTitle() {
-    grep -oP "^title \K.*" $1 | grep -qE "$title_value"
+    grep -oP "^title \K.*" "$1" | grep -qE "$title_value"
 }
 
 function List() {
     filtered=$( # Filter
-    echo $option_set | grep -qG "k"
+    echo "$option_set" | grep -qG "k"
     bykernel=$?
-    echo $option_set | grep -qG "t" 
+    echo "$option_set" | grep -qG "t" 
     bytitle=$?
     if [[ $bymernel == 0 ]] && [[ $bytitle == 0 ]]; then
         for file in $boot_entries_dir/*; do
-            FilterKernel $file && FilterTitle $file && echo $file 
+            FilterKernel "$file" && FilterTitle "$file" && echo "$file" 
         done
     elif [[ $bykernel == 0 ]]; then
         for file in $boot_entries_dir/*; do
-            FilterKernel $file && echo $file 
+            FilterKernel "$file" && echo "$file"
         done
     elif [[ $bytitle == 0 ]]; then
         for file in $boot_entries_dir/*; do
-            FilterTitle $file && echo $file
+            FilterTitle "$file" && echo "$file"
         done
     else
         for file in $boot_entries_dir/*; do
-            echo $file 
+            echo "$file"
         done
     fi
     );
 
     (
-    if echo $option_set | grep -qG "f"; then # Sort by filename
-        for file in $filtered; do
-            echo $file | grep -oP '[^/]*\.conf$'
+    if echo "$option_set" | grep -qG "f"; then # Sort by filename
+        for file in "$filtered"; do
+            echo "$file" | grep -oP '[^/]*\.conf$'
         done | sort | while read -r line; do echo "$boot_entries_dir/$line"; done
-    elif echo $option_set | grep -qG "s"; then # Sort by sortkey
-        for file in $filtered; do
-            sort_key=$(grep -oP '^sort-key \K.*' $file)
-            echo "$([[ "$sort_key" != "" ]] && echo "." || echo "z") $sort_key $(echo $file | grep -oP '[^/]*\.conf$')"
+    elif echo "$option_set" | grep -qG "s"; then # Sort by sortkey
+        for file in "$filtered"; do
+            sort_key=$(grep -oP '^sort-key \K.*' "$file")
+            echo "$([[ "$sort_key" != "" ]] && echo "." || echo "z") $sort_key $(echo "$file" | grep -oP '[^/]*\.conf$')"
         done | sort | cut -d ' ' -f3- | while read -r line; do echo "$boot_entries_dir/$line"; done
     else # Unsorted
-        for file in $filtered; do
-            echo $file
+        for file in "$filtered"; do
+            echo "$file"
         done
     fi
-    ) | while read file; do ListFileEntry $file; done 
+    ) | while read file; do ListFileEntry "$file"; done 
 
     return 0
 }
@@ -243,11 +252,18 @@ function GetOptions() {
                 ;;
             \?)
                 echo "Error invalid option" >&2
+                Usage
                 exit 1
                 ;;
         esac
     done
 }
+
+if [[ $# -eq 0 ]]; then
+    echo "No command given to execute" <&2
+    Usage
+    exit 1
+fi
 
 # read options and mode
 GetOptions "$@"
@@ -271,6 +287,7 @@ fi
 
 return_code=0
 
+
 # Mode
 case $mode in 
     list)
@@ -278,7 +295,7 @@ case $mode in
         ;;
     remove)
         if [[ "$#" == "1" && "$1" != "" ]]; then
-            Remove $1
+            Remove "$1"
         fi
         ;;
     duplicate)
